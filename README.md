@@ -1,3 +1,11 @@
+<p align="center">
+  <img 
+    src="./downloads/project.png" 
+    alt="YT Downloader Project Structure"
+    width="100%"
+  />
+</p>
+
 # 🎬 YT Downloader
 
 A modern full-stack YouTube/media downloader built with **React, TypeScript, Node.js, Express, yt-dlp, and Docker**.
@@ -125,50 +133,3 @@ Docker Compose is used to run the complete application.
                     │   Docker Volume      │
                     └──────────────────────┘
     
-
-yt-downloader/
-│
-├── backend/
-│   │
-│   ├── src/
-│   │   ├── controllers/
-│   │   │   └── downloadController.ts
-│   │   │
-│   │   ├── services/
-│   │   │   ├── jobManager.ts
-│   │   │   └── ytDlpService.ts
-│   │   │
-│   │   ├── routes/
-│   │   │   └── downloadRoutes.ts
-│   │   │
-│   │   ├── types/
-│   │   │   └── index.ts
-│   │   │
-│   │   └── utils/
-│   │       └── validation.ts
-│   │
-│   ├── Dockerfile
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── frontend/
-│   │
-│   ├── src/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   ├── types/
-│   │   └── App.tsx
-│   │
-│   ├── public/
-│   ├── Dockerfile
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
-│
-├── downloads/
-│
-├── docker-compose.yml
-├── .gitignore
-└── README.md

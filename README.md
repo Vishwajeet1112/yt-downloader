@@ -1,6 +1,6 @@
 <p align="center">
   <img 
-    src="./downloads/project.png" 
+    src="./image.png" 
     alt="YT Downloader Project Structure"
     width="100%"
   />

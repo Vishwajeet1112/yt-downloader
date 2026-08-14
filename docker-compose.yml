@@ -1,0 +1,35 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: yt-downloader-backend
+
+    ports:
+      - "3001:3001"
+
+    volumes:
+      - ./downloads:/app/downloads
+
+    environment:
+      NODE_ENV: production
+
+    restart: unless-stopped
+
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: yt-downloader-frontend
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      - backend
+
+    restart: unless-stopped

@@ -162,6 +162,9 @@ git clone https://github.com/Vishwajeet1112/yt-downloader.git
 
 cd yt-downloader
 
+Frontend: npm i
+
+Backend: npm i
 
 🌐 Open the Application
 

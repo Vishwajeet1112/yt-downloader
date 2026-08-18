@@ -14,7 +14,7 @@ BACKEND API URL
 */
 
 export const API =
-  "http://localhost:3001";
+  "https://yt-downloader-production-0b18.up.railway.app";
 
 
 /*

@@ -46,27 +46,52 @@ function getFormat(
   switch (quality) {
 
     case "4k":
-      return "bestvideo[height<=2160]+bestaudio/best[height<=2160]";
+      return "bestvideo[height<=2160]+bestaudio/best[height<=2160]/best[height<=2160]/best";
 
     case "1080":
-      return "bestvideo[height<=1080]+bestaudio/best[height<=1080]";
+      return "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=1080]/best";
 
     case "720":
-      return "bestvideo[height<=720]+bestaudio/best[height<=720]";
+      return "bestvideo[height<=720]+bestaudio/best[height<=720]/best[height<=720]/best";
 
     case "480":
-      return "bestvideo[height<=480]+bestaudio/best[height<=480]";
+      return "bestvideo[height<=480]+bestaudio/best[height<=480]/best[height<=480]/best";
 
     case "360":
-      return "bestvideo[height<=360]+bestaudio/best[height<=360]";
+      return "bestvideo[height<=360]+bestaudio/best[height<=360]/best[height<=360]/best";
 
     case "audio":
       return "bestaudio/best";
 
     case "best":
     default:
-      return "bestvideo+bestaudio/best";
+      return "bestvideo*+bestaudio/best";
   }
+}
+
+
+/*
+==================================================
+YT-DLP COMMON OPTIONS
+==================================================
+*/
+
+function getYtDlpCommonArgs(): string[] {
+  return [
+    "--newline",
+    "--progress",
+    "--no-warnings",
+    "--no-playlist",
+    "--js-runtimes",
+    "deno",
+    "--remote-components",
+    "ejs:github",
+    "--force-ipv4",
+    "--retries",
+    "3",
+    "--fragment-retries",
+    "3",
+  ];
 }
 
 
@@ -244,18 +269,16 @@ function getPlaylistEntries(
           "yt-dlp",
           [
             "--flat-playlist",
-
             "--dump-single-json",
-
             "--no-download",
-
-            "--no-warnings",
-
             "--yes-playlist",
-
+            "--js-runtimes",
+            "deno",
+            "--remote-components",
+            "ejs:github",
+            "--force-ipv4",
             "--socket-timeout",
             "30",
-
             url,
           ],
           {
@@ -830,25 +853,13 @@ function downloadSingleVideo(
       ) {
 
         args = [
-
-          "--newline",
-
-          "--progress",
-
-          "--no-warnings",
-
-          "--no-playlist",
-
+          ...getYtDlpCommonArgs(),
           "-x",
-
           "--audio-format",
           "mp3",
-
           "-o",
           outputTemplate,
-
           video.url,
-
         ];
 
       } else {
@@ -860,28 +871,16 @@ function downloadSingleVideo(
         */
 
         args = [
-
-          "--newline",
-
-          "--progress",
-
-          "--no-warnings",
-
-          "--no-playlist",
-
+          ...getYtDlpCommonArgs(),
           "-f",
           getFormat(
             quality
           ),
-
           "--merge-output-format",
           "mp4",
-
           "-o",
           outputTemplate,
-
           video.url,
-
         ];
       }
 

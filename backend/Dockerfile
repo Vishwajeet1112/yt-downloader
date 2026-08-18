@@ -1,9 +1,6 @@
 FROM node:22-bookworm
 
-# ==========================================
-# SYSTEM DEPENDENCIES
-# ==========================================
-
+# System dependencies
 RUN apt-get update && \
     apt-get install -y \
     ffmpeg \
@@ -12,87 +9,51 @@ RUN apt-get update && \
     curl \
     ca-certificates \
     unzip \
+    git \
+    build-essential \
+    libcairo2-dev \
+    libjpeg-dev \
+    libpango1.0-dev \
+    libgif-dev \
+    librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-
-# ==========================================
-# INSTALL DENO
-# ==========================================
-
+# Deno for yt-dlp EJS JavaScript solving
 RUN curl -fsSL https://deno.land/install.sh | sh
-
 ENV DENO_INSTALL=/root/.deno
 ENV PATH="/root/.deno/bin:${PATH}"
 
+# yt-dlp + official/community PO-token provider plugin
+RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade "yt-dlp[default]" "bgutil-ytdlp-pot-provider==1.3.1"
 
-# ==========================================
-# INSTALL LATEST YT-DLP
-# ==========================================
+# Build the bgutil script provider locally.
+# Script mode avoids requiring a second Railway service.
+RUN git clone --depth 1 --branch 1.3.1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil-ytdlp-pot-provider \
+    && cd /opt/bgutil-ytdlp-pot-provider/server \
+    && npm ci \
+    && npx tsc
 
-RUN pip3 install \
-    --break-system-packages \
-    --no-cache-dir \
-    --upgrade \
-    "yt-dlp[default]"
+# Global yt-dlp configuration used by every yt-dlp invocation.
+COPY yt-dlp.conf /etc/yt-dlp.conf
 
-
-# ==========================================
-# VERIFY TOOLS
-# ==========================================
-
-RUN node --version
-RUN python3 --version
-RUN ffmpeg -version
-RUN deno --version
-RUN yt-dlp --version
-
-
-# ==========================================
-# APPLICATION
-# ==========================================
+# Verify runtime
+RUN node --version \
+    && python3 --version \
+    && ffmpeg -version \
+    && deno --version \
+    && yt-dlp --version \
+    && test -f /opt/bgutil-ytdlp-pot-provider/server/build/generate_once.js
 
 WORKDIR /app
 
-
-# ==========================================
-# INSTALL NODE DEPENDENCIES
-# ==========================================
-
 COPY package*.json ./
-
 RUN npm ci
 
-
-# ==========================================
-# COPY SOURCE
-# ==========================================
-
 COPY . .
-
-
-# ==========================================
-# BUILD TYPESCRIPT
-# ==========================================
-
 RUN npm run build
-
-
-# ==========================================
-# DOWNLOAD DIRECTORY
-# ==========================================
 
 RUN mkdir -p /app/downloads
 
-
-# ==========================================
-# PORT
-# ==========================================
-
 EXPOSE 3001
-
-
-# ==========================================
-# START
-# ==========================================
 
 CMD ["npm", "start"]

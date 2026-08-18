@@ -14,7 +14,8 @@ BACKEND API URL
 */
 
 export const API =
-  "https://yt-downloader-production-0b18.up.railway.app";
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:3001";
 
 
 /*

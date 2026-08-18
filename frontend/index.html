@@ -9,6 +9,15 @@
     content="width=device-width, initial-scale=1.0"
   />
 
+  <meta
+    http-equiv="Cache-Control"
+    content="no-cache, no-store, must-revalidate"
+  />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
   <title>YT Downloader</title>
 </head>
 
@@ -20,6 +29,32 @@
     type="module"
     src="/src/main.tsx"
   ></script>
+
+  <!--
+    Hard-refresh fallback for the Download Manager Refresh button.
+    React still handles normal application refreshes, while this capture
+    guarantees a real browser reload when the button is clicked.
+  -->
+  <script>
+    window.addEventListener("click", function (event) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const button = target.closest(".refresh-button");
+
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      window.location.reload();
+    }, true);
+  </script>
 
 </body>
 

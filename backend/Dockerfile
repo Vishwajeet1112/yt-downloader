@@ -18,31 +18,26 @@ RUN apt-get update && \
     librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Deno for yt-dlp EJS JavaScript solving
+# Deno for yt-dlp EJS JavaScript challenge solving
 RUN curl -fsSL https://deno.land/install.sh | sh
 ENV DENO_INSTALL=/root/.deno
 ENV PATH="/root/.deno/bin:${PATH}"
 
-# yt-dlp + official/community PO-token provider plugin
-RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade "yt-dlp[default]" "bgutil-ytdlp-pot-provider==1.3.1"
+# yt-dlp
+RUN python3 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    --upgrade \
+    "yt-dlp[default]" \
+    "bgutil-ytdlp-pot-provider==1.3.1"
 
-# Build the bgutil script provider locally.
-# Script mode avoids requiring a second Railway service.
+# bgutil HTTP provider
 RUN git clone --depth 1 --branch 1.3.1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil-ytdlp-pot-provider \
     && cd /opt/bgutil-ytdlp-pot-provider/server \
     && npm ci \
     && npx tsc
 
-# Global yt-dlp configuration used by every yt-dlp invocation.
 COPY yt-dlp.conf /etc/yt-dlp.conf
-
-# Verify runtime
-RUN node --version \
-    && python3 --version \
-    && ffmpeg -version \
-    && deno --version \
-    && yt-dlp --version \
-    && test -f /opt/bgutil-ytdlp-pot-provider/server/build/generate_once.js
 
 WORKDIR /app
 
@@ -51,9 +46,10 @@ RUN npm ci
 
 COPY . .
 RUN npm run build
-
 RUN mkdir -p /app/downloads
 
+# Run the PO-token HTTP server and the API in the same container.
 EXPOSE 3001
+EXPOSE 4416
 
-CMD ["npm", "start"]
+CMD ["sh", "-c", "cd /opt/bgutil-ytdlp-pot-provider/server && node build/main.js --port 4416 & exec npm start"]

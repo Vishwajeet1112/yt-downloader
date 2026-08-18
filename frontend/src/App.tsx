@@ -16,7 +16,8 @@ import {
 
 import "./index.css";
 
-const API = "http://localhost:3001/api";
+const API =
+  "https://yt-downloader-production-0b18.up.railway.app/api";
 
 type VideoInfo = {
   success?: boolean;

@@ -14,8 +14,12 @@ BACKEND API URL
 */
 
 export const API =
+<<<<<<< HEAD
   import.meta.env.VITE_API_URL ||
   "http://localhost:3001";
+=======
+  "https://yt-downloader-production-0b18.up.railway.app";
+>>>>>>> 4544ec9 (Fix backend API and yt-dlp downloads)
 
 
 /*

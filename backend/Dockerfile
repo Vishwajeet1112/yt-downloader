@@ -1,6 +1,9 @@
 FROM node:22-bookworm
 
-# Install FFmpeg, Python, curl and certificates
+# ==========================================
+# SYSTEM DEPENDENCIES
+# ==========================================
+
 RUN apt-get update && \
     apt-get install -y \
     ffmpeg \
@@ -11,32 +14,85 @@ RUN apt-get update && \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Deno
+
+# ==========================================
+# INSTALL DENO
+# ==========================================
+
 RUN curl -fsSL https://deno.land/install.sh | sh
 
 ENV DENO_INSTALL=/root/.deno
-ENV PATH="${DENO_INSTALL}/bin:${PATH}"
+ENV PATH="/root/.deno/bin:${PATH}"
 
-# Install latest yt-dlp with default dependencies including EJS
-RUN pip3 install --break-system-packages --upgrade "yt-dlp[default]"
 
-# Verify installations
-RUN deno --version && \
-    yt-dlp --version && \
-    ffmpeg -version
+# ==========================================
+# INSTALL LATEST YT-DLP
+# ==========================================
+
+RUN pip3 install \
+    --break-system-packages \
+    --no-cache-dir \
+    --upgrade \
+    "yt-dlp[default]"
+
+
+# ==========================================
+# VERIFY TOOLS
+# ==========================================
+
+RUN node --version
+RUN python3 --version
+RUN ffmpeg -version
+RUN deno --version
+RUN yt-dlp --version
+
+
+# ==========================================
+# APPLICATION
+# ==========================================
 
 WORKDIR /app
+
+
+# ==========================================
+# INSTALL NODE DEPENDENCIES
+# ==========================================
 
 COPY package*.json ./
 
 RUN npm ci
 
+
+# ==========================================
+# COPY SOURCE
+# ==========================================
+
 COPY . .
+
+
+# ==========================================
+# BUILD TYPESCRIPT
+# ==========================================
 
 RUN npm run build
 
+
+# ==========================================
+# DOWNLOAD DIRECTORY
+# ==========================================
+
 RUN mkdir -p /app/downloads
 
+
+# ==========================================
+# PORT
+# ==========================================
+
 EXPOSE 3001
+
+
+# ==========================================
+# START
+# ==========================================
 
 CMD ["npm", "start"]

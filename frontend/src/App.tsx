@@ -23,26 +23,28 @@ function App() {
   const selectDownloadFolder = async () => {
     setError("");
     const pickerWindow = window as DirectoryPickerWindow;
+    if (typeof pickerWindow.showDirectoryPicker !== "function") {
+      setError("Folder selection requires Google Chrome or Microsoft Edge desktop over HTTPS.");
+      return null;
+    }
     try {
-      if (typeof pickerWindow.showDirectoryPicker !== "function") {
-        setError("Your browser does not support folder selection. Use Google Chrome or Microsoft Edge on Windows over HTTPS.");
-        return;
-      }
       const handle = await pickerWindow.showDirectoryPicker({ mode: "readwrite" });
-      if (!handle) return;
+      if (!handle) return null;
       setDownloadFolder(handle);
       setFolderName(handle.name || "Selected folder");
+      return handle;
     } catch (err: any) {
-      if (err?.name === "AbortError") return;
+      if (err?.name === "AbortError") return null;
       console.error("Folder picker error:", err);
-      setError(err?.message || "Unable to open the folder picker. Check browser permissions and try again.");
+      setError(err?.message || "Unable to open the folder picker.");
+      return null;
     }
   };
 
-  const saveBlobToFolder = async (response: Response, filename: string) => {
-    if (!downloadFolder) return false;
+  const saveBlobToFolder = async (response: Response, filename: string, folder = downloadFolder) => {
+    if (!folder) return false;
     const cleanName = filename.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim() || "download";
-    const fileHandle = await downloadFolder.getFileHandle(cleanName, { create: true });
+    const fileHandle = await folder.getFileHandle(cleanName, { create: true });
     const writable = await fileHandle.createWritable();
     try {
       if (response.body) await response.body.pipeTo(writable);
@@ -66,6 +68,24 @@ function App() {
     finally { setAnalyzing(false); }
   };
 
+  // Clicking Download first asks for the local Windows folder, then starts the server job.
+  const startDownload = async () => {
+    if (!url.trim()) { setError("Please enter a YouTube URL."); return; }
+    setError("");
+    let selectedFolder = downloadFolder;
+    if (!selectedFolder) {
+      selectedFolder = await selectDownloadFolder();
+      if (!selectedFolder) return;
+    }
+    try {
+      const response = await fetch(`${API}/download`, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ url: url.trim(), quality }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Download could not be started.");
+      if (data.job) setJobs(previous => previous.some(job => job.id === data.job.id) ? previous : [data.job, ...previous]);
+      await refreshJobs();
+    } catch (err: any) { setError(err?.message || "Unable to start download."); }
+  };
+
   const refreshJobs = async () => {
     try {
       const response = await fetch(`${API}/downloads?_=${Date.now()}`, { method: "GET", cache: "no-store", headers: { "Cache-Control": "no-cache, no-store, must-revalidate", Pragma: "no-cache" } });
@@ -74,18 +94,6 @@ function App() {
       if (!Array.isArray(data)) throw new Error("Invalid download list received from server.");
       setJobs(data);
     } catch (err: any) { setError(err?.message || "Unable to refresh downloads."); }
-  };
-
-  const startDownload = async () => {
-    if (!url.trim()) { setError("Please enter a YouTube URL."); return; }
-    setError("");
-    try {
-      const response = await fetch(`${API}/download`, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ url: url.trim(), quality }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Download could not be started.");
-      if (data.job) setJobs(previous => previous.some(job => job.id === data.job.id) ? previous : [data.job, ...previous]);
-      await refreshJobs();
-    } catch (err: any) { setError(err?.message || "Unable to start download."); }
   };
 
   const reloadPage = () => { if (refreshing) return; setRefreshing(true); window.location.reload(); };
@@ -104,24 +112,14 @@ function App() {
   const downloadCompletedFile = async (job: Job) => {
     if (!job.filename) { setError("The completed filename is not available yet."); return; }
     try {
+      let folder = downloadFolder;
+      if (!folder) folder = await selectDownloadFolder();
+      if (!folder) return;
       const response = await fetch(`${API}/download/${encodeURIComponent(job.id)}/file`, { cache: "no-store" });
       if (!response.ok) throw new Error(`File download failed (${response.status}).`);
       const safeName = job.filename.split(/[\\/]/).pop() || "download";
-      if (downloadFolder) {
-        await saveBlobToFolder(response, safeName);
-        setError("");
-        return;
-      }
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = safeName;
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      await saveBlobToFolder(response, safeName, folder);
+      setError("");
     } catch (err: any) { setError(err?.message || "Unable to save completed file."); }
   };
 
@@ -137,10 +135,6 @@ function App() {
         <label>YouTube URL</label>
         <div className="url-row"><div className="input-wrapper"><Link size={20} /><input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void analyzeVideo(); }} placeholder="Paste YouTube video or playlist URL..." /></div><button type="button" className="primary-button" onClick={() => void analyzeVideo()} disabled={analyzing}>{analyzing ? <><Loader2 className="spin" size={20} />Analyzing...</> : <><RotateCw size={20} />Analyze</>}</button></div>
         {isPlaylist && <div className="playlist-detected"><ListVideo size={18} />Playlist URL detected</div>}
-      </section>
-      <section className="card folder-card">
-        <div><label>Download Location</label><p>{folderName ? `Selected: ${folderName}` : "Choose where completed files should be saved on your computer."}</p></div>
-        <button type="button" className="refresh-button" onClick={() => void selectDownloadFolder()}><FolderOpen size={19} />{folderName ? "Change Folder" : "Select Folder"}</button>
       </section>
       {error && <div className="error-box"><AlertCircle size={20} /><span>{error}</span><button type="button" onClick={() => setError("")}><XCircle size={18} /></button></div>}
       {video && <section className="card video-card"><div className="video-preview">{video.thumbnail && <img src={video.thumbnail} alt={video.title} />}<div className="video-details"><h3>{video.title}</h3><p className="channel">{video.uploader}</p><div className="video-meta"><span>{video.duration || "Unknown duration"}</span><span>{formatNumber(video.view_count)} views</span>{video.upload_date && <span>{video.upload_date}</span>}</div></div></div><div className="quality-section"><label>Download Quality</label><select value={quality} onChange={e => setQuality(e.target.value)}><option value="best">Best Quality</option><option value="4k">4K — Best Available</option><option value="1080">1080p — Full HD</option><option value="720">720p — HD</option><option value="480">480p</option><option value="360">360p</option><option value="audio">Audio — MP3</option></select><button type="button" className="download-button" onClick={() => void startDownload()}>{quality === "audio" ? <Music size={22} /> : <Video size={22} />}Download</button></div></section>}

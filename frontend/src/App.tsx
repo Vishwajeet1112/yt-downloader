@@ -6,7 +6,6 @@ const API = "https://yt-downloader-production-0b18.up.railway.app/api";
 
 type VideoInfo = { success?: boolean; title: string; thumbnail: string; uploader: string; duration: string; duration_seconds?: number; view_count: number; upload_date: string; webpage_url: string; id?: string; channel?: string; channel_url?: string; description?: string; };
 type Job = { id: string; url: string; quality: string; status: string; progress: number; speed?: string; eta?: string; downloaded?: string; total?: string; filename?: string; error?: string; current?: number; total_items?: number; completed?: number; };
-
 type DirectoryPickerWindow = Window & { showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<any> };
 
 function App() {
@@ -24,16 +23,13 @@ function App() {
   const selectDownloadFolder = async () => {
     setError("");
     const pickerWindow = window as DirectoryPickerWindow;
-
     try {
       if (typeof pickerWindow.showDirectoryPicker !== "function") {
-        setError("Your browser does not support folder selection. Open this site in Google Chrome or Microsoft Edge on Windows, using HTTPS.");
+        setError("Your browser does not support folder selection. Use Google Chrome or Microsoft Edge on Windows over HTTPS.");
         return;
       }
-
       const handle = await pickerWindow.showDirectoryPicker({ mode: "readwrite" });
       if (!handle) return;
-
       setDownloadFolder(handle);
       setFolderName(handle.name || "Selected folder");
     } catch (err: any) {
@@ -70,6 +66,16 @@ function App() {
     finally { setAnalyzing(false); }
   };
 
+  const refreshJobs = async () => {
+    try {
+      const response = await fetch(`${API}/downloads?_=${Date.now()}`, { method: "GET", cache: "no-store", headers: { "Cache-Control": "no-cache, no-store, must-revalidate", Pragma: "no-cache" } });
+      if (!response.ok) throw new Error(`Refresh failed (${response.status})`);
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error("Invalid download list received from server.");
+      setJobs(data);
+    } catch (err: any) { setError(err?.message || "Unable to refresh downloads."); }
+  };
+
   const startDownload = async () => {
     if (!url.trim()) { setError("Please enter a YouTube URL."); return; }
     setError("");
@@ -82,16 +88,6 @@ function App() {
     } catch (err: any) { setError(err?.message || "Unable to start download."); }
   };
 
-  const refreshJobs = async () => {
-    try {
-      const response = await fetch(`${API}/downloads?_=${Date.now()}`, { method: "GET", cache: "no-store", headers: { "Cache-Control": "no-cache, no-store, must-revalidate", Pragma: "no-cache" } });
-      if (!response.ok) throw new Error(`Refresh failed (${response.status})`);
-      const data = await response.json();
-      if (!Array.isArray(data)) throw new Error("Invalid download list received from server.");
-      setJobs(data);
-    } catch (err: any) { setError(err?.message || "Unable to refresh downloads."); }
-  };
-
   const reloadPage = () => { if (refreshing) return; setRefreshing(true); window.location.reload(); };
 
   useEffect(() => {
@@ -101,7 +97,7 @@ function App() {
   }, []);
 
   const cancelDownload = async (id: string) => {
-    try { const response = await fetch(`${API}/download/${id}/cancel`, { method: "POST", cache: "no-store" }); if (!response.ok) throw new Error("Unable to cancel download."); await refreshJobs(); }
+    try { const response = await fetch(`${API}/download/${encodeURIComponent(id)}/cancel`, { method: "POST", cache: "no-store" }); if (!response.ok) throw new Error("Unable to cancel download."); await refreshJobs(); }
     catch (err: any) { setError(err?.message || "Unable to cancel download."); }
   };
 
@@ -119,7 +115,12 @@ function App() {
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
-      anchor.href = objectUrl; anchor.download = safeName; anchor.click();
+      anchor.href = objectUrl;
+      anchor.download = safeName;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch (err: any) { setError(err?.message || "Unable to save completed file."); }
   };
@@ -134,15 +135,15 @@ function App() {
       <section className="hero"><h2>Download Videos</h2><p>Fast and simple YouTube video and playlist downloader.</p></section>
       <section className="card url-card">
         <label>YouTube URL</label>
-        <div className="url-row"><div className="input-wrapper"><Link size={20} /><input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void analyzeVideo(); }} placeholder="Paste YouTube video or playlist URL..." /></div><button className="primary-button" onClick={analyzeVideo} disabled={analyzing}>{analyzing ? <><Loader2 className="spin" size={20} />Analyzing...</> : <><RotateCw size={20} />Analyze</>}</button></div>
+        <div className="url-row"><div className="input-wrapper"><Link size={20} /><input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void analyzeVideo(); }} placeholder="Paste YouTube video or playlist URL..." /></div><button type="button" className="primary-button" onClick={() => void analyzeVideo()} disabled={analyzing}>{analyzing ? <><Loader2 className="spin" size={20} />Analyzing...</> : <><RotateCw size={20} />Analyze</>}</button></div>
         {isPlaylist && <div className="playlist-detected"><ListVideo size={18} />Playlist URL detected</div>}
       </section>
       <section className="card folder-card">
         <div><label>Download Location</label><p>{folderName ? `Selected: ${folderName}` : "Choose where completed files should be saved on your computer."}</p></div>
         <button type="button" className="refresh-button" onClick={() => void selectDownloadFolder()}><FolderOpen size={19} />{folderName ? "Change Folder" : "Select Folder"}</button>
       </section>
-      {error && <div className="error-box"><AlertCircle size={20} /><span>{error}</span><button onClick={() => setError("")}><XCircle size={18} /></button></div>}
-      {video && <section className="card video-card"><div className="video-preview">{video.thumbnail && <img src={video.thumbnail} alt={video.title} />}<div className="video-details"><h3>{video.title}</h3><p className="channel">{video.uploader}</p><div className="video-meta"><span>{video.duration || "Unknown duration"}</span><span>{formatNumber(video.view_count)} views</span>{video.upload_date && <span>{video.upload_date}</span>}</div></div></div><div className="quality-section"><label>Download Quality</label><select value={quality} onChange={e => setQuality(e.target.value)}><option value="best">Best Quality</option><option value="4k">4K — Best Available</option><option value="1080">1080p — Full HD</option><option value="720">720p — HD</option><option value="480">480p</option><option value="360">360p</option><option value="audio">Audio — MP3</option></select><button className="download-button" onClick={startDownload}>{quality === "audio" ? <Music size={22} /> : <Video size={22} />}Download</button></div></section>}
+      {error && <div className="error-box"><AlertCircle size={20} /><span>{error}</span><button type="button" onClick={() => setError("")}><XCircle size={18} /></button></div>}
+      {video && <section className="card video-card"><div className="video-preview">{video.thumbnail && <img src={video.thumbnail} alt={video.title} />}<div className="video-details"><h3>{video.title}</h3><p className="channel">{video.uploader}</p><div className="video-meta"><span>{video.duration || "Unknown duration"}</span><span>{formatNumber(video.view_count)} views</span>{video.upload_date && <span>{video.upload_date}</span>}</div></div></div><div className="quality-section"><label>Download Quality</label><select value={quality} onChange={e => setQuality(e.target.value)}><option value="best">Best Quality</option><option value="4k">4K — Best Available</option><option value="1080">1080p — Full HD</option><option value="720">720p — HD</option><option value="480">480p</option><option value="360">360p</option><option value="audio">Audio — MP3</option></select><button type="button" className="download-button" onClick={() => void startDownload()}>{quality === "audio" ? <Music size={22} /> : <Video size={22} />}Download</button></div></section>}
       {jobs.length > 0 && <section className="downloads-section"><div className="section-title"><div><h2>Download Manager</h2><p>{jobs.length} download{jobs.length !== 1 ? "s" : ""}</p></div><button type="button" className="refresh-button" onClick={reloadPage} disabled={refreshing}><RotateCw size={19} className={refreshing ? "spin" : ""} />{refreshing ? "Reloading..." : "Refresh"}</button></div>
         {jobs.map(job => { const progress = Math.min(100, Math.max(0, Number(job.progress) || 0)); const completed = job.status === "completed" || job.status === "finished"; const failed = job.status === "error" || job.status === "failed"; const cancelled = job.status === "cancelled"; return <div className="card job-card" key={job.id}>
           <div className="job-header"><div className="job-title">{completed ? <CheckCircle2 size={24} className="green" /> : failed || cancelled ? <AlertCircle size={24} className="red" /> : <Download size={24} />}<div><h3>{job.filename || "YouTube Download"}</h3><p>{statusText(job.status)}</p></div></div><strong>{progress}%</strong></div>
@@ -151,7 +152,7 @@ function App() {
           <div className="job-info"><div><span>Speed</span><strong>{job.speed || "--"}</strong></div><div><span>ETA</span><strong>{job.eta || "--"}</strong></div><div><span>Quality</span><strong>{job.quality}</strong></div><div><span>Downloaded</span><strong>{job.downloaded || "--"}</strong></div><div><span>Total</span><strong>{job.total || "--"}</strong></div></div>
           {job.filename && <div className="filename"><span>File:</span>{job.filename}</div>}
           {job.error && <div className="job-error"><AlertCircle size={18} />{job.error}</div>}
-          {!completed && !failed && !cancelled && <button className="cancel-button" onClick={() => void cancelDownload(job.id)}><Trash2 size={18} />Cancel Download</button>}
+          {!completed && !failed && !cancelled && <button type="button" className="cancel-button" onClick={() => void cancelDownload(job.id)}><Trash2 size={18} />Cancel Download</button>}
           {completed && <button type="button" className="download-button" onClick={() => void downloadCompletedFile(job)}><Download size={20} />{downloadFolder ? "Save to Selected Folder" : "Download File"}</button>}
         </div>; })}
       </section>}

@@ -7,7 +7,7 @@ const API = "https://yt-downloader-production-0b18.up.railway.app/api";
 type VideoInfo = { success?: boolean; title: string; thumbnail: string; uploader: string; duration: string; duration_seconds?: number; view_count: number; upload_date: string; webpage_url: string; id?: string; channel?: string; channel_url?: string; description?: string; };
 type Job = { id: string; url: string; quality: string; status: string; progress: number; speed?: string; eta?: string; downloaded?: string; total?: string; filename?: string; error?: string; current?: number; total_items?: number; completed?: number; };
 
-type DirectoryHandle = FileSystemDirectoryHandle;
+type DirectoryPickerWindow = Window & { showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<any> };
 
 function App() {
   const [url, setUrl] = useState("");
@@ -17,34 +17,44 @@ function App() {
   const [error, setError] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [downloadFolder, setDownloadFolder] = useState<DirectoryHandle | null>(null);
+  const [downloadFolder, setDownloadFolder] = useState<any>(null);
   const [folderName, setFolderName] = useState("");
   const pollingRef = useRef<number | null>(null);
 
   const selectDownloadFolder = async () => {
     setError("");
+    const pickerWindow = window as DirectoryPickerWindow;
+
     try {
-      if (!("showDirectoryPicker" in window)) {
-        setError("Folder selection is not supported in this browser. Please use Google Chrome or Microsoft Edge on desktop.");
+      if (typeof pickerWindow.showDirectoryPicker !== "function") {
+        setError("Your browser does not support folder selection. Open this site in Google Chrome or Microsoft Edge on Windows, using HTTPS.");
         return;
       }
-      const picker = (window as any).showDirectoryPicker;
-      const handle: DirectoryHandle = await picker({ mode: "readwrite", startIn: "downloads" }).catch(async (err: any) => {
-        if (err?.name === "NotFoundError") return picker({ mode: "readwrite" });
-        throw err;
-      });
+
+      const handle = await pickerWindow.showDirectoryPicker({ mode: "readwrite" });
+      if (!handle) return;
+
       setDownloadFolder(handle);
       setFolderName(handle.name || "Selected folder");
     } catch (err: any) {
-      if (err?.name !== "AbortError") setError(err?.message || "Unable to select download folder.");
+      if (err?.name === "AbortError") return;
+      console.error("Folder picker error:", err);
+      setError(err?.message || "Unable to open the folder picker. Check browser permissions and try again.");
     }
   };
 
   const saveBlobToFolder = async (response: Response, filename: string) => {
     if (!downloadFolder) return false;
-    const fileHandle = await downloadFolder.getFileHandle(filename, { create: true });
+    const cleanName = filename.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim() || "download";
+    const fileHandle = await downloadFolder.getFileHandle(cleanName, { create: true });
     const writable = await fileHandle.createWritable();
-    try { await response.body?.pipeTo(writable); } catch (err) { await writable.abort(); throw err; }
+    try {
+      if (response.body) await response.body.pipeTo(writable);
+      else await writable.close();
+    } catch (err) {
+      try { await writable.abort(); } catch { /* ignore */ }
+      throw err;
+    }
     return true;
   };
 
@@ -110,7 +120,7 @@ function App() {
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl; anchor.download = safeName; anchor.click();
-      URL.revokeObjectURL(objectUrl);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch (err: any) { setError(err?.message || "Unable to save completed file."); }
   };
 
@@ -129,7 +139,7 @@ function App() {
       </section>
       <section className="card folder-card">
         <div><label>Download Location</label><p>{folderName ? `Selected: ${folderName}` : "Choose where completed files should be saved on your computer."}</p></div>
-        <button type="button" className="refresh-button" onClick={selectDownloadFolder}><FolderOpen size={19} />{folderName ? "Change Folder" : "Select Folder"}</button>
+        <button type="button" className="refresh-button" onClick={() => void selectDownloadFolder()}><FolderOpen size={19} />{folderName ? "Change Folder" : "Select Folder"}</button>
       </section>
       {error && <div className="error-box"><AlertCircle size={20} /><span>{error}</span><button onClick={() => setError("")}><XCircle size={18} /></button></div>}
       {video && <section className="card video-card"><div className="video-preview">{video.thumbnail && <img src={video.thumbnail} alt={video.title} />}<div className="video-details"><h3>{video.title}</h3><p className="channel">{video.uploader}</p><div className="video-meta"><span>{video.duration || "Unknown duration"}</span><span>{formatNumber(video.view_count)} views</span>{video.upload_date && <span>{video.upload_date}</span>}</div></div></div><div className="quality-section"><label>Download Quality</label><select value={quality} onChange={e => setQuality(e.target.value)}><option value="best">Best Quality</option><option value="4k">4K — Best Available</option><option value="1080">1080p — Full HD</option><option value="720">720p — HD</option><option value="480">480p</option><option value="360">360p</option><option value="audio">Audio — MP3</option></select><button className="download-button" onClick={startDownload}>{quality === "audio" ? <Music size={22} /> : <Video size={22} />}Download</button></div></section>}

@@ -6,15 +6,7 @@ import apiRouter from "./routes/api";
 
 const app = express();
 
-const PORT = Number(
-  process.env.PORT || 3001
-);
-
-/*
-==================================================
-SECURITY
-==================================================
-*/
+const PORT = Number(process.env.PORT || 3001);
 
 app.use(
   helmet({
@@ -22,84 +14,47 @@ app.use(
   })
 );
 
-/*
-==================================================
-CORS
-==================================================
-
-The frontend is hosted on Vercel while this API is
-hosted on Railway. Allow browser requests from any
-origin because this is a public downloader API and
-we do not use cookie-based authentication.
-*/
-
+// Frontend is hosted on Vercel and API is hosted on Railway.
+// Keep CORS explicit and allow the headers used by the frontend.
 app.use(
   cors({
-    origin: "*",
-    methods: [
-      "GET",
-      "POST",
-      "DELETE",
-      "OPTIONS",
+    origin: [
+      "https://yt-downloader-1mpy.vercel.app",
+      "https://yt-downloader-production-0b18.up.railway.app",
     ],
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "Cache-Control",
+      "Pragma",
+      "Accept",
     ],
+    credentials: false,
     optionsSuccessStatus: 204,
+    maxAge: 86400,
   })
 );
 
-app.use(
-  express.json({
-    limit: "2mb",
-  })
-);
+app.use(express.json({ limit: "2mb" }));
 
-/*
-==================================================
-HEALTH CHECK
-==================================================
-*/
+app.get("/", (_req, res) => {
+  res.json({
+    success: true,
+    message: "Backend is working",
+  });
+});
 
-app.get(
-  "/",
-  (_req, res) => {
-    res.json({
-      success: true,
-      message: "Backend is working",
-    });
-  }
-);
+app.get("/health", (_req, res) => {
+  res.json({
+    success: true,
+    service: "yt-downloader-backend",
+    status: "healthy",
+  });
+});
 
-app.get(
-  "/health",
-  (_req, res) => {
-    res.json({
-      success: true,
-      service: "yt-downloader-backend",
-      status: "healthy",
-    });
-  }
-);
+app.use("/api", apiRouter);
 
-/*
-==================================================
-API ROUTES
-==================================================
-*/
-
-app.use(
-  "/api",
-  apiRouter
-);
-
-app.listen(
-  PORT,
-  "0.0.0.0",
-  () => {
-    console.log(
-      `Backend running on http://0.0.0.0:${PORT}`
-    );
-  }
-);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Backend running on http://0.0.0.0:${PORT}`);
+});
